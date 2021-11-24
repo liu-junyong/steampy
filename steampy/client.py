@@ -46,6 +46,10 @@ class SteamClient:
         LoginExecutor(username, password, self.steam_guard['shared_secret'], self._session).login()
         self.was_login_executed = True
         self.market._set_login_executed(self.steam_guard, self._get_session_id())
+        
+    def login_by_cookies(self, cookie: dict) -> None:
+        self._session.cookies = cookiejar_from_dict(cookie)
+        self.was_login_executed = True    
 
     @login_required
     def logout(self) -> None:
