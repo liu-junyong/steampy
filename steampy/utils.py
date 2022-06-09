@@ -1,4 +1,5 @@
 import decimal
+import json
 import os
 
 import copy
@@ -10,7 +11,7 @@ from typing import List
 
 from bs4 import BeautifulSoup, Tag
 
-from steampy.models import GameOptions
+from steampy.models import GameOptions, SteamUrl, Asset
 
 
 def text_between(text: str, begin: str, end: str) -> str:
@@ -30,6 +31,58 @@ def texts_between(text: str, begin: str, end: str):
             return
 
 
+def create_trade_offer_header(trade_offer_url: str) -> dict:
+    headers = {
+        'Referer': trade_offer_url,
+        'Origin': SteamUrl.COMMUNITY_URL,
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.67 Safari/537.36',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7',
+        'Accept-Encoding': '',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    }
+
+    return headers
+
+
+def create_offer_dict(items_from_me: List[Asset], items_from_them: List[Asset], version: int) -> dict:
+    return {
+        'newversion': True,
+        'version': version,
+        'me': {
+            'assets': [asset.to_dict() for asset in items_from_me],
+            'currency': [],
+            'ready': False
+        },
+        'them': {
+            'assets': [asset.to_dict() for asset in items_from_them],
+            'currency': [],
+            'ready': False
+        }
+    }
+
+
+def create_trade_offer_params(items_from_me: List[Asset], items_from_them: List[Asset],
+                              trade_offer_url: str, session_id: str, message: str = '', version: int = 2,
+                              case_sensitive: bool = True) -> dict:
+    token = get_key_value_from_url(trade_offer_url, 'token', case_sensitive)
+    partner_account_id = get_key_value_from_url(trade_offer_url, 'partner', case_sensitive)
+    partner_steam_id = account_id_to_steam_id(partner_account_id)
+    offer = create_offer_dict(items_from_me, items_from_them, version)
+    server_id = 1
+    trade_offer_create_params = {'trade_offer_access_token': token}
+    params = {
+        'sessionid': session_id,
+        'serverid': server_id,
+        'partner': partner_steam_id,
+        'tradeoffermessage': message,
+        'json_tradeoffer': json.dumps(offer),
+        'captcha': '',
+        'trade_offer_create_params': json.dumps(trade_offer_create_params)
+    }
+
+    return params
+
+
 def account_id_to_steam_id(account_id: str) -> str:
     first_bytes = int(account_id).to_bytes(4, byteorder='big')
     last_bytes = 0x1100001.to_bytes(4, byteorder='big')
@@ -38,6 +91,21 @@ def account_id_to_steam_id(account_id: str) -> str:
 
 def steam_id_to_account_id(steam_id: str) -> str:
     return str(struct.unpack('>L', int(steam_id).to_bytes(8, byteorder='big')[4:])[0])
+
+
+def find_trade_url(content: str, steam_id: str) -> str:
+    account_id = steam_id_to_account_id(steam_id)
+    res = re.findall(r'\"(https:\/\/steamcommunity.com\/tradeoffer\/new\/\?partner=%s&token=.*)\"' % account_id, content)
+    if len(res) > 0:
+        return res[0]
+    return ""
+
+
+def check_trade_url(steam_id: str, steam_trade_url: str) -> bool:
+    """
+    检查交易链接是否匹配
+    """
+    return steam_trade_url.find(steam_id_to_account_id(steam_id)) > 0
 
 
 def parse_price(price: str) -> decimal.Decimal:
@@ -163,7 +231,7 @@ def get_description_key(item: dict) -> str:
     return item['classid'] + '_' + item['instanceid']
 
 
-def get_key_value_from_url(url: str, key: str, case_sensitive: bool=True) -> str:
+def get_key_value_from_url(url: str, key: str, case_sensitive: bool = True) -> str:
     params = urlparse.urlparse(url).query
     if case_sensitive:
         return urlparse.parse_qs(params)[key][0]

@@ -6,6 +6,9 @@ from typing import List, Union
 
 import json
 import requests
+from loguru import logger
+from requests.cookies import cookiejar_from_dict
+
 from steampy import guard
 from steampy.chat import SteamChat
 from steampy.confirmation import ConfirmationExecutor
@@ -29,7 +32,7 @@ def login_required(func):
 
 
 class SteamClient:
-    def __init__(self, api_key: str, username: str = None, password: str = None, steam_guard:str = None) -> None:
+    def __init__(self, api_key: str, username: str = None, password: str = None, steam_guard: str = None) -> None:
         self._api_key = api_key
         self._session = requests.Session()
         self.steam_guard = steam_guard
@@ -46,10 +49,10 @@ class SteamClient:
         LoginExecutor(username, password, self.steam_guard['shared_secret'], self._session).login()
         self.was_login_executed = True
         self.market._set_login_executed(self.steam_guard, self._get_session_id())
-        
+
     def login_by_cookies(self, cookie: dict) -> None:
         self._session.cookies = cookiejar_from_dict(cookie)
-        self.was_login_executed = True    
+        self.was_login_executed = True
 
     @login_required
     def logout(self) -> None:
@@ -69,6 +72,20 @@ class SteamClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.logout()
+
+    @login_required
+    def is_cookies_alive(self):
+        headers = {
+                   'Origin': SteamUrl.COMMUNITY_URL,
+                   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.67 Safari/537.36',
+                   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7',
+                    'Accept-Encoding': '',
+                   }
+        main_page_response = self._session.get(SteamUrl.COMMUNITY_URL,headers=headers)
+        ret = 'javascript:Logout()' in main_page_response.text.lower()
+        if not ret:
+            logger.info("{} \r\n  javascript:Logout() {}", SteamUrl.COMMUNITY_URL, main_page_response)
+        return ret
 
     @login_required
     def is_session_alive(self):
@@ -98,7 +115,8 @@ class SteamClient:
         return self.get_partner_inventory(steam_id, game, merge, count)
 
     @login_required
-    def get_partner_inventory(self, partner_steam_id: str, game: GameOptions, merge: bool = True, count: int = 5000) -> dict:
+    def get_partner_inventory(self, partner_steam_id: str, game: GameOptions, merge: bool = True,
+                              count: int = 5000) -> dict:
         url = '/'.join([SteamUrl.COMMUNITY_URL, 'inventory', partner_steam_id, game.app_id, game.context_id])
         params = {'l': 'english',
                   'count': count}
@@ -223,7 +241,7 @@ class SteamClient:
         url = 'https://steamcommunity.com/tradeoffer/' + trade_offer_id + '/cancel'
         response = self._session.post(url, data={'sessionid': self._get_session_id()}).json()
         return response
-    
+
     @login_required
     def make_offer(self, items_from_me: List[Asset], items_from_them: List[Asset], partner_steam_id: str,
                    message: str = '') -> dict:
@@ -243,7 +261,9 @@ class SteamClient:
         partner_account_id = steam_id_to_account_id(partner_steam_id)
         headers = {'Referer': SteamUrl.COMMUNITY_URL + '/tradeoffer/new/?partner=' + partner_account_id,
                    'Origin': SteamUrl.COMMUNITY_URL}
-        response = self._session.post(url, data=params, headers=headers).json()
+        r = self._session.post(url, data=params, headers=headers)
+        response = r.json()
+
         if response.get('needs_mobile_confirmation'):
             response.update(self._confirm_transaction(response['tradeofferid']))
         return response
@@ -254,7 +274,7 @@ class SteamClient:
         data = response.json()
         return data['response']['players'][0]
 
-    def get_friend_list(self, steam_id: str, relationship_filter: str="all") -> dict:
+    def get_friend_list(self, steam_id: str, relationship_filter: str = "all") -> dict:
         params = {
             'key': self._api_key,
             'steamid': steam_id,
@@ -268,7 +288,7 @@ class SteamClient:
     def _create_offer_dict(items_from_me: List[Asset], items_from_them: List[Asset]) -> dict:
         return {
             'newversion': True,
-            'version': 4,
+            'version': 2,
             'me': {
                 'assets': [asset.to_dict() for asset in items_from_me],
                 'currency': [],
@@ -292,7 +312,7 @@ class SteamClient:
 
     @login_required
     def make_offer_with_url(self, items_from_me: List[Asset], items_from_them: List[Asset],
-                            trade_offer_url: str, message: str = '', case_sensitive: bool=True) -> dict:
+                            trade_offer_url: str, message: str = '', case_sensitive: bool = True) -> dict:
         token = get_key_value_from_url(trade_offer_url, 'token', case_sensitive)
         partner_account_id = get_key_value_from_url(trade_offer_url, 'partner', case_sensitive)
         partner_steam_id = account_id_to_steam_id(partner_account_id)
@@ -310,11 +330,48 @@ class SteamClient:
             'captcha': '',
             'trade_offer_create_params': json.dumps(trade_offer_create_params)
         }
-        headers = {'Referer': SteamUrl.COMMUNITY_URL + urlparse.urlparse(trade_offer_url).path,
-                   'Origin': SteamUrl.COMMUNITY_URL}
-        response = self._session.post(url, data=params, headers=headers).json()
+        headers = {'Referer': trade_offer_url,
+                   'Origin': SteamUrl.COMMUNITY_URL,
+                   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.67 Safari/537.36',
+                   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7',
+                   'Accept-Encoding': '',
+                   'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+
+                   }
+        r = self._session.post(url, data=params, headers=headers)
+        response = r.json()
         if response.get('needs_mobile_confirmation'):
             response.update(self._confirm_transaction(response['tradeofferid']))
+        return response
+
+    @login_required
+    def make_offer_without_confirm(self, items_from_me: List[Asset], items_from_them: List[Asset],
+                                   trade_offer_url: str, message: str = '', case_sensitive: bool = True) -> dict:
+        token = get_key_value_from_url(trade_offer_url, 'token', case_sensitive)
+        partner_account_id = get_key_value_from_url(trade_offer_url, 'partner', case_sensitive)
+        partner_steam_id = account_id_to_steam_id(partner_account_id)
+        offer = self._create_offer_dict(items_from_me, items_from_them)
+        session_id = self._get_session_id()
+        url = SteamUrl.COMMUNITY_URL + '/tradeoffer/new/send'
+        server_id = 1
+        trade_offer_create_params = {'trade_offer_access_token': token}
+        params = {
+            'sessionid': session_id,
+            'serverid': server_id,
+            'partner': partner_steam_id,
+            'tradeoffermessage': message,
+            'json_tradeoffer': json.dumps(offer),
+            'captcha': '',
+            'trade_offer_create_params': json.dumps(trade_offer_create_params)
+        }
+        headers = {'Referer': trade_offer_url,
+                   'Origin': SteamUrl.COMMUNITY_URL,
+                   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.67 Safari/537.36',
+                   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7', 'Accept-Encoding': '',
+                   'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                   }
+        r = self._session.post(url, data=params, headers=headers)
+        response = r.json()
         return response
 
     @staticmethod
