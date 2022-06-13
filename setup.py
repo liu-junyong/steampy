@@ -4,7 +4,7 @@ import sys
 if not sys.version_info[0] == 3 and sys.version_info[1] < 5:
     sys.exit('Python < 3.5 is not supported')
 
-version = '0.76a'
+version = '0.87'
 
 setup(
     name='steampy',
@@ -14,8 +14,8 @@ setup(
     author='liujunyong,origin author:bukson',
     author_email='liu.junyong@gmail.com',
     license='MIT',
-    url='https://gitee.com/liu_junyong/steampy',
-    download_url='https://gitee.com/liu_junyong/steampy/' + version,
+    url='https://github.com/liu-junyong/steampy',
+    download_url='https://github.com/liu-junyong/steampy/' + version,
     keywords=['steam', 'trade', ],
     classifiers=[],
     install_requires=[
