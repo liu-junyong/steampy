@@ -76,7 +76,7 @@ class SteamAsyncClient:
             async with sess.get(url) as resp:
                 res_text = await resp.text()
 
-                if 'Your Inventory Privacy is set to Public.' not in res_text:
+                if 'Your Inventory Privacy is' in res_text and  'Your Inventory Privacy is set to Public.' not in res_text:
                     raise SteamInventoryNotPublic()
 
                 new_trade_url = find_trade_url(res_text, steam_id)
