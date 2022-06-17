@@ -7,7 +7,7 @@ import aiohttp
 
 from steampy.client import login_required
 from steampy.exceptions import ApiException, InvalidApiKey, SevenDaysHoldException, LoginRequired, InvalidSteamTradeURL, \
-    SteamInventoryNotPublic, SteamTradeError, SteamCookieNotAlive, SteamCannotTrade
+    SteamInventoryNotPublic, SteamTradeError, SteamCookieNotAlive, SteamCannotTrade, AnotherSteamCannotTrade
 from steampy.models import SteamUrl, GameOptions, TradeOfferState, Asset
 from steampy.utils import merge_items_with_descriptions_from_inventory, merge_items_with_descriptions_from_offers, \
     get_description_key, merge_items_with_descriptions_from_offer, text_between, steam_id_to_account_id, \
@@ -60,24 +60,24 @@ class SteamAsyncClient:
                 if "You must have had Steam Guard enabled for at least 15 days before you can participate in a trade." in res_text:
                     raise SteamCannotTrade()
 
+                if "This person has a limited account" in res_text:
+                    raise AnotherSteamCannotTrade()
+
                 if "Sorry, some kind of error has occurred:" in res_text:
                     raise SteamTradeError()
 
     @login_required
     async def check_our_trade_url(self, steam_id: str, steam_trade_url: str) -> str:
-        # if not check_trade_url(steam_id, steam_trade_url):
-        #     raise InvalidSteamTradeURL()
+        if not check_trade_url(steam_id, steam_trade_url):
+            raise InvalidSteamTradeURL()
 
         async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers) as sess:
             url = "%s/profiles/%s/tradeoffers/privacy/" % (SteamUrl.COMMUNITY_URL, steam_id)
             async with sess.get(url) as resp:
                 res_text = await resp.text()
 
-                if 'javascript:Logout()' not in res_text:
-                    raise SteamCookieNotAlive()
-
-                # if 'Your Inventory Privacy is set to Public.' not in res_text:
-                #     raise SteamInventoryNotPublic()
+                if 'Your Inventory Privacy is set to Public.' not in res_text:
+                    raise SteamInventoryNotPublic()
 
                 new_trade_url = find_trade_url(res_text, steam_id)
 
