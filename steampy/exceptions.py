@@ -46,5 +46,9 @@ class SteamCannotTrade(SteamTradeError):
     pass
 
 
+class AnotherSteamCannotTrade(SteamTradeError):
+    pass
+
+
 class SteamCookieNotAlive(Exception):
     pass
