@@ -76,8 +76,8 @@ class SteamAsyncClient:
             async with sess.get(url) as resp:
                 res_text = await resp.text()
 
-                if 'Your Inventory Privacy is set to Public.' not in res_text:
-                    raise SteamInventoryNotPublic()
+                if 'javascript:Logout()' not in res_text:
+                    raise SteamCookieNotAlive()
 
                 new_trade_url = find_trade_url(res_text, steam_id)
 
