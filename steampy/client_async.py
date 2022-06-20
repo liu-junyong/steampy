@@ -125,6 +125,8 @@ class SteamAsyncClient:
 
         async with aiohttp.ClientSession(cookies=self._cookies) as sess:
             async with sess.get(url, params=params) as resp:
+                if resp.status == 403:
+                    raise SteamInventoryNotPublic()
                 response_dict = await resp.json()
         if 'success' in response_dict and response_dict['success'] != 1:
             raise ApiException('Success value should be 1.')
