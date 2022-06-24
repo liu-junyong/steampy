@@ -7,7 +7,7 @@ import aiohttp
 
 from steampy.client import login_required
 from steampy.exceptions import ApiException, InvalidApiKey, SevenDaysHoldException, LoginRequired, InvalidSteamTradeURL, \
-    SteamInventoryNotPublic, SteamTradeError, SteamCookieNotAlive, SteamCannotTrade
+    SteamInventoryNotPublic, SteamTradeError, SteamCookieNotAlive, SteamCannotTrade, AnotherSteamCannotTrade
 from steampy.models import SteamUrl, GameOptions, TradeOfferState, Asset
 from steampy.utils import merge_items_with_descriptions_from_inventory, merge_items_with_descriptions_from_offers, \
     get_description_key, merge_items_with_descriptions_from_offer, text_between, steam_id_to_account_id, \
@@ -60,6 +60,9 @@ class SteamAsyncClient:
                 if "You must have had Steam Guard enabled for at least 15 days before you can participate in a trade." in res_text:
                     raise SteamCannotTrade()
 
+                if "This person has a limited account" in res_text:
+                    raise AnotherSteamCannotTrade()
+
                 if "Sorry, some kind of error has occurred:" in res_text:
                     raise SteamTradeError()
 
@@ -75,9 +78,6 @@ class SteamAsyncClient:
 
                 if 'javascript:Logout()' not in res_text:
                     raise SteamCookieNotAlive()
-
-                # if 'Your Inventory Privacy is set to Public.' not in res_text:
-                #     raise SteamInventoryNotPublic()
 
                 new_trade_url = find_trade_url(res_text, steam_id)
 
@@ -125,6 +125,8 @@ class SteamAsyncClient:
 
         async with aiohttp.ClientSession(cookies=self._cookies) as sess:
             async with sess.get(url, params=params) as resp:
+                if resp.status == 403:
+                    raise SteamInventoryNotPublic()
                 response_dict = await resp.json()
         if 'success' in response_dict and response_dict['success'] != 1:
             raise ApiException('Success value should be 1.')

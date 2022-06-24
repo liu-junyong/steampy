@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "steampy"
-version = "0.87e"
+version = "0.88.0"
 description = "steampy"
 authors = ["liu-junyong <720556@qq.com>"]
 
