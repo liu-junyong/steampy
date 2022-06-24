@@ -68,8 +68,8 @@ class SteamAsyncClient:
 
     @login_required
     async def check_our_trade_url(self, steam_id: str, steam_trade_url: str) -> str:
-        if not check_trade_url(steam_id, steam_trade_url):
-            raise InvalidSteamTradeURL()
+        # if not check_trade_url(steam_id, steam_trade_url):
+        #     raise InvalidSteamTradeURL()
 
         async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers) as sess:
             url = "%s/profiles/%s/tradeoffers/privacy/" % (SteamUrl.COMMUNITY_URL, steam_id)
