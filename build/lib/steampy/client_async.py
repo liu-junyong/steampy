@@ -37,7 +37,7 @@ class SteamAsyncClient:
 
     @login_required
     async def is_cookies_alive(self):
-        async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.get(SteamUrl.COMMUNITY_URL) as resp:
                 res_text = await resp.text()
                 if 'javascript:Logout()' not in res_text:
@@ -48,7 +48,7 @@ class SteamAsyncClient:
         if not check_trade_url(steam_id, steam_trade_url):
             raise InvalidSteamTradeURL()
 
-        async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers,connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.get(steam_trade_url) as resp:
                 res_text = await resp.text()
                 if "inventory privacy is set to \"Private\"" in res_text:
@@ -71,7 +71,7 @@ class SteamAsyncClient:
         # if not check_trade_url(steam_id, steam_trade_url):
         #     raise InvalidSteamTradeURL()
 
-        async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers,connector=aiohttp.TCPConnector(ssl=False) ) as sess:
             url = "%s/profiles/%s/tradeoffers/privacy/" % (SteamUrl.COMMUNITY_URL, steam_id)
             async with sess.get(url) as resp:
                 res_text = await resp.text()
@@ -86,7 +86,7 @@ class SteamAsyncClient:
     async def api_call(self, request_method: str, interface: str, api_method: str, version: str,
                        params: dict = None) -> dict:
         url = '/'.join([SteamUrl.API_URL, interface, api_method, version])
-        async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, headers=self._headers, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             if request_method == 'GET':
                 resp = await sess.get(url, params=params)
             else:
@@ -123,7 +123,7 @@ class SteamAsyncClient:
         if tradable:
             params["trading"] = tradable
 
-        async with aiohttp.ClientSession(cookies=self._cookies) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.get(url, params=params) as resp:
                 if resp.status == 403:
                     raise SteamInventoryNotPublic()
@@ -258,7 +258,7 @@ class SteamAsyncClient:
                   'partner': partner,
                   'captcha': ''}
         headers = {'Referer': self._get_trade_offer_url(trade_offer_id)}
-        async with aiohttp.ClientSession(cookies=self._cookies) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.post(accept_url, data=params, headers=headers) as resp:
                 response = await resp.json()
         # if response.get('needs_mobile_confirmation', False):
@@ -272,7 +272,7 @@ class SteamAsyncClient:
 
     async def _fetch_trade_partner_id(self, trade_offer_id: str) -> str:
         url = self._get_trade_offer_url(trade_offer_id)
-        async with aiohttp.ClientSession() as sess:
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.get(url) as resp:
                 offer_response_text = await resp.text()
 
@@ -287,7 +287,7 @@ class SteamAsyncClient:
     @login_required
     async def decline_trade_offer(self, trade_offer_id: str) -> dict:
         url = 'https://steamcommunity.com/tradeoffer/' + trade_offer_id + '/decline'
-        async with aiohttp.ClientSession(cookies=self._cookies) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.post(url, data={'sessionid': self._get_session_id()}) as resp:
                 response = await resp.json()
 
@@ -296,7 +296,7 @@ class SteamAsyncClient:
     @login_required
     async def cancel_trade_offer(self, trade_offer_id: str) -> dict:
         url = 'https://steamcommunity.com/tradeoffer/' + trade_offer_id + '/cancel'
-        async with aiohttp.ClientSession(cookies=self._cookies) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.post(url, data={'sessionid': self._get_session_id()}) as resp:
                 response = await resp.json()
 
@@ -321,7 +321,7 @@ class SteamAsyncClient:
         partner_account_id = steam_id_to_account_id(partner_steam_id)
         headers = {'Referer': SteamUrl.COMMUNITY_URL + '/tradeoffer/new/?partner=' + partner_account_id,
                    'Origin': SteamUrl.COMMUNITY_URL}
-        async with aiohttp.ClientSession(cookies=self._cookies) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.post(url, data=params, headers=headers) as resp:
                 response = await resp.json()
 
@@ -355,7 +355,7 @@ class SteamAsyncClient:
     async def get_escrow_duration(self, trade_offer_url: str) -> int:
         headers = {'Referer': SteamUrl.COMMUNITY_URL + urlparse.urlparse(trade_offer_url).path,
                    'Origin': SteamUrl.COMMUNITY_URL}
-        async with aiohttp.ClientSession(cookies=self._cookies) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.get(trade_offer_url, headers=headers) as resp:
                 response = await resp.text()
         my_escrow_duration = int(text_between(response, "var g_daysMyEscrow = ", ";"))
@@ -370,7 +370,7 @@ class SteamAsyncClient:
         params = create_trade_offer_params(items_from_me, items_from_them, trade_offer_url, session_id,
                                            message, 2, case_sensitive)
         headers = create_trade_offer_header(trade_offer_url)
-        async with aiohttp.ClientSession(cookies=self._cookies) as sess:
+        async with aiohttp.ClientSession(cookies=self._cookies, connector=aiohttp.TCPConnector(ssl=False)) as sess:
             async with sess.post(url, data=params, headers=headers) as resp:
                 response = await resp.json()
         # if response.get('needs_mobile_confirmation'):
